@@ -20,12 +20,12 @@ export class Render {
 		this.setupCanvases()
 		this.overlayRender = new OverlayRender(this.ctx)
 
-		this.overlayRender.addOverlay("MIDIano", 150)
-		this.overlayRender.addOverlay("A Javascript MIDI-Player", 150)
-		this.overlayRender.addOverlay(
-			"Example song by Bernd Krueger from piano-midi.de",
-			150
-		)
+		this.overlayRender.addOverlay("Press play to begin", 300)
+		// this.overlayRender.addOverlay("A Javascript MIDI-Player", 150)
+		// this.overlayRender.addOverlay(
+		// 	"Example song by Bernd Krueger from piano-midi.de",
+		// 	150
+		// )
 
 		this.debugRender = new DebugRender(DEBUG, this.ctx)
 		this.noteRender = new NoteRender(this.ctx, this.pianoRender)

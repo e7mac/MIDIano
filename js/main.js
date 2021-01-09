@@ -16,11 +16,20 @@ import { InputListeners } from "./InputListeners.js"
 var soundfontLoader, player, ui, player, loading, listeners
 var channels = []
 
+
+function getUrlVars() {
+    var vars = {};
+    var parts = window.location.href.replace(/[?&]+([^=&]+)=([^&]*)/gi, function(m,key,value) {
+        vars[key] = value;
+    });
+    return vars;
+}
+
 window.onload = async function () {
 	await init()
 	loading = true
 
-	//	loadSongFromURL("http://www.piano-midi.de/midis/brahms/brahms_opus1_1_format0.mid")
+	loadSongFromURL(getUrlVars()["url"])
 }
 
 async function init() {
