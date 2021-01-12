@@ -8,10 +8,18 @@ export class UI {
 	constructor(player, render, isMobile) {
 		this.settings = {
 			showParticles: true,
+			particleAmount: 40,
+			particleSize: 1,
+			particleLife: 12,
+			particleSpeed: 4,
 			showHitKeys: true,
 			showPianoKeys: true,
+			strokeNotes: true,
+			roundedNotes: true,
+			fadeInNotes: true,
 			renderOffset: 0,
-			showNoteDebugInfo: false
+			showNoteDebugInfo: false,
+			soundfontName: "MusyngKite"
 		}
 		this.midiInputHandler = player.midiInputHandler
 		this.player = player
@@ -32,9 +40,10 @@ export class UI {
 			player.updateSettings(this.settings)
 		}
 
-		this.resize()
+		document.body.addEventListener("mousemove", this.mouseMoved.bind(this))
 
 		this.createControlMenu()
+		this.resize()
 	}
 
 	/**
@@ -44,6 +53,13 @@ export class UI {
 		this.width = Math.floor(window.innerWidth)
 		this.height = Math.floor(window.innerHeight)
 		this.menuHeight = 200
+		document
+			.querySelectorAll(".innerMenuDiv")
+			.forEach(
+				el =>
+					(el.style.height =
+						"calc(100% - " + this.getNavBar().clientHeight + "px)")
+			)
 	}
 	fireInitialListeners() {
 		//Todo: or preload glyphs somehow. . .
@@ -82,19 +98,23 @@ export class UI {
 		let minimizeButton = this.getMinimizeButton()
 		let zoomDiv = this.getZoomDiv()
 
-		this.getNavBar().appendChild(minimizeButton)
+		document.body.appendChild(minimizeButton)
 		this.getNavBar().appendChild(topGroupsContainer)
+
+		this.getTrackMenuDiv()
+		this.getLoadedSongsDiv()
+		this.getSettingsDiv()
+
+		this.createFileDragArea()
 	}
 	getZoomDiv() {
 		//todo
 	}
 	mouseMoved() {
-		this.getMinimizeButton().style.transition = "none"
 		this.getMinimizeButton().style.opacity = 1
 		if (!this.fadingOutMinimizeButton) {
 			this.fadingOutMinimizeButton = true
 			window.setTimeout(() => {
-				this.getMinimizeButton().style.transition = "1s all ease-out"
 				this.getMinimizeButton().style.opacity = 0
 				this.fadingOutMinimizeButton = false
 			}, 1000)
@@ -107,7 +127,7 @@ export class UI {
 				"chevron-up",
 				() => {
 					if (!this.navMinimized) {
-						this.getNavBar().style.top =
+						this.getNavBar().style.marginTop =
 							"-" + this.getNavBar().clientHeight + "px"
 						this.navMinimized = true
 						this.minimizeButton
@@ -118,8 +138,7 @@ export class UI {
 							.classList.add("glyphicon-chevron-down")
 						this.onMenuHeightChange(0)
 					} else {
-						this.getNavBar().style.top = "0px"
-						// this.minimizeButton.style.bottom = "0px"
+						this.getNavBar().style.marginTop = "0px"
 						this.navMinimized = false
 
 						this.minimizeButton
@@ -135,8 +154,8 @@ export class UI {
 			this.minimizeButton.style.padding = "0px"
 			this.minimizeButton.style.fontSize = "0.5em"
 		}
-		this.minimizeButton.style.bottom =
-			-24 - this.minimizeButton.clientHeight + "px"
+		let navbarHeight = this.navMinimized ? 0 : this.getNavBar().clientHeight
+		this.minimizeButton.style.top = navbarHeight + 20 + "px"
 		return this.minimizeButton
 	}
 
@@ -226,21 +245,24 @@ export class UI {
 		}
 		return this.settingsButton
 	}
+	hideDiv(div) {
+		div.style.visibility = "hidden"
+		div.style.opacity = "0"
+	}
+	showDiv(div) {
+		div.style.visibility = "visible"
+		div.style.opacity = "1"
+	}
 	hideSettings() {
 		DomHelper.removeClass("selected", this.getSettingsButton())
 		this.settingsShown = false
-		this.getSettingsDiv().style.display = "none"
+		this.hideDiv(this.getSettingsDiv())
 	}
 	showSettings() {
-		if (this.settingsShown) {
-			this.hideSettings()
-		}
-		if (this.tracksShown) {
-			this.hideTracks()
-		}
+		this.hideAllDialogs()
 		DomHelper.addClassToElement("selected", this.getSettingsButton())
 		this.settingsShown = true
-		this.getSettingsDiv().style.display = "block"
+		this.showDiv(this.getSettingsDiv())
 	}
 	getSettingsDiv() {
 		if (!this.settingsDiv) {
@@ -248,17 +270,26 @@ export class UI {
 				"settingsDiv",
 				"innerMenuDiv"
 			)
-			this.settingsDiv.style.display = "none"
+			this.hideDiv(this.settingsDiv)
 			this.getSettingsContent().forEach(element =>
 				this.settingsDiv.appendChild(element)
 			)
 			document.body.appendChild(this.settingsDiv)
 		}
-		this.settingsDiv.style.marginTop = this.getNavBar().clientHeight + 25 + "px"
 		return this.settingsDiv
 	}
 	getSettingsContent() {
 		let settingsDivs = []
+
+		let loadMessage = this.setLoadMessage.bind(this)
+		let soundfontSelect = DomHelper.createInputSelect(
+			"Soundfont",
+			["MusyngKite", "FluidR3_GM", "FatBoy"],
+			function (newVal) {
+				this.player.switchSoundfont(newVal, loadMessage)
+			}.bind(this)
+		)
+		settingsDivs.push(soundfontSelect)
 
 		let showParticlesCheckbox = DomHelper.createCheckbox(
 			"Show Particles",
@@ -268,8 +299,58 @@ export class UI {
 			},
 			this.settings.showParticles
 		)
-
 		settingsDivs.push(showParticlesCheckbox)
+
+		let particleAmountSlider = DomHelper.createSliderWithLabelAndField(
+			"particleAmountSlider",
+			"Particle Amount",
+			this.settings.particleAmount,
+			0,
+			200,
+			value => {
+				this.settings.particleAmount = value
+				this.notifySettingsChanged()
+			}
+		)
+		settingsDivs.push(particleAmountSlider.container)
+		let particleSizeSlider = DomHelper.createSliderWithLabelAndField(
+			"particleSizeSlider",
+			"Particle Size",
+			this.settings.particleSize,
+			0,
+			5,
+			value => {
+				this.settings.particleSize = value
+				this.notifySettingsChanged()
+			}
+		)
+		settingsDivs.push(particleSizeSlider.container)
+
+		let particleSpeedSlider = DomHelper.createSliderWithLabelAndField(
+			"particleSpeedSlider",
+			"Particle Speed",
+			this.settings.particleSpeed,
+			1,
+			15,
+			value => {
+				this.settings.particleSpeed = value
+				this.notifySettingsChanged()
+			}
+		)
+		settingsDivs.push(particleSpeedSlider.container)
+
+		let particleLifeSlider = DomHelper.createSliderWithLabelAndField(
+			"particleDurationSlider",
+			"Particle Duration",
+			this.settings.particleLife,
+			1,
+			30,
+			value => {
+				this.settings.particleLife = value
+				this.notifySettingsChanged()
+			}
+		)
+		settingsDivs.push(particleLifeSlider.container)
 
 		let showHitKeysCheckbox = DomHelper.createCheckbox(
 			"Hit Key Effect",
@@ -280,6 +361,36 @@ export class UI {
 			this.settings.showHitKeys
 		)
 		settingsDivs.push(showHitKeysCheckbox)
+
+		let strokeNotesCheckbox = DomHelper.createCheckbox(
+			"Stroke Notes",
+			ev => {
+				this.settings.strokeNotes = ev.target.checked
+				this.notifySettingsChanged()
+			},
+			this.settings.strokeNotes
+		)
+		settingsDivs.push(strokeNotesCheckbox)
+
+		let roundedNotesCheckbox = DomHelper.createCheckbox(
+			"Rounded Corners Notes",
+			ev => {
+				this.settings.roundedNotes = ev.target.checked
+				this.notifySettingsChanged()
+			},
+			this.settings.roundedNotes
+		)
+		settingsDivs.push(roundedNotesCheckbox)
+
+		let fadeInNotesCheckbox = DomHelper.createCheckbox(
+			"Fade in Notes",
+			ev => {
+				this.settings.fadeInNotes = ev.target.checked
+				this.notifySettingsChanged()
+			},
+			this.settings.fadeInNotes
+		)
+		settingsDivs.push(fadeInNotesCheckbox)
 
 		let showPianoKeysCheckbox = DomHelper.createCheckbox(
 			"Show Notes on Piano",
@@ -357,25 +468,32 @@ export class UI {
 				"Loaded Songs",
 				ev => {
 					if (this.loadedSongsShown) {
-						DomHelper.removeClass("selected", this.loadedSongsButton)
-						this.loadedSongsShown = false
-						this.getLoadedSongsDiv().style.display = "none"
+						this.hideLoadedSongsDiv()
 					} else {
-						DomHelper.addClassToElement("selected", this.loadedSongsButton)
-						this.loadedSongsShown = true
-						this.getLoadedSongsDiv().style.display = "block"
+						this.showLoadedSongsDiv()
 					}
 				}
 			)
 		}
 		return this.loadedSongsButton
 	}
+	showLoadedSongsDiv() {
+		this.hideAllDialogs()
+		DomHelper.addClassToElement("selected", this.loadedSongsButton)
+		this.loadedSongsShown = true
+		this.showDiv(this.getLoadedSongsDiv())
+	}
+
+	hideLoadedSongsDiv() {
+		DomHelper.removeClass("selected", this.loadedSongsButton)
+		this.loadedSongsShown = false
+		this.hideDiv(this.getLoadedSongsDiv())
+	}
+
 	getLoadedSongsDiv() {
 		if (!this.loadedSongsDiv) {
-			this.loadedSongsDiv = DomHelper.createDivWithClass(
-				"btn-group btn-group-vertical"
-			)
-			this.loadedSongsDiv.style.display = "none"
+			this.loadedSongsDiv = DomHelper.createDivWithClass("innerMenuDiv")
+			this.hideDiv(this.loadedSongsDiv)
 			document.body.appendChild(this.loadedSongsDiv)
 		}
 		this.player.loadedSongs.forEach(song => {
@@ -383,36 +501,117 @@ export class UI {
 				this.createSongDiv(song)
 			}
 		})
-		this.loadedSongsDiv.style.marginTop =
-			this.getNavBar().clientHeight + 25 + "px"
 		return this.loadedSongsDiv
 	}
 	createSongDiv(song) {
-		song.div = DomHelper.createGlyphiconTextButton(
-			"song" + song.fileName,
-			"",
-			song.fileName,
-			() => {
-				this.player.setSong(song)
+		let wrapper = DomHelper.createDivWithIdAndClass(
+			"songWrap" + song.fileName.replaceAll(" ", "_"),
+			"innerMenuContDiv"
+		)
+		song.div = DomHelper.createButton(
+			"song" + song.fileName.replaceAll(" ", "_"),
+			() => this.player.setSong(song)
+		)
+		song.div.innerHTML = song.fileName
+		wrapper.appendChild(song.div)
+		this.getLoadedSongsDiv().appendChild(wrapper)
+	}
+	createFileDragArea() {
+		let dragArea = DomHelper.createElement(
+			"div",
+			{
+				position: "absolute",
+				top: 0,
+				left: 0,
+				width: "100%",
+				height: "100%",
+				zIndex: 10000,
+				visibility: "hidden",
+				opacity: "0",
+				backgroundColor: "rgba(0,0,0,0.2)",
+				transition: "all 0.2s ease-out"
+			},
+			{
+				draggable: "true"
 			}
 		)
-		song.div.style.float = "left"
-		this.getLoadedSongsDiv().appendChild(song.div)
+
+		let dragAreaText = DomHelper.createDivWithClass(
+			"centeredBigText",
+			{
+				marginTop: "25%",
+				fontSize: "35px",
+				color: "rgba(225,225,225,0.8)"
+			},
+			{ innerHTML: "Drop Midi File anywhere!" }
+		)
+		dragArea.appendChild(dragAreaText)
+
+		dragArea.ondrop = ev => {
+			console.log(123)
+			dragArea.style.backgroundColor = "rgba(0,0,0,0)"
+			this.handleDragDropFileSelect(ev)
+		}
+		let lastTarget
+		window.ondragenter = ev => {
+			ev.preventDefault()
+			lastTarget = ev.target
+			dragArea.style.visibility = ""
+			dragArea.style.opacity = "1"
+		}
+		window.ondragleave = ev => {
+			if (ev.target === lastTarget || ev.target === document) {
+				dragArea.style.visibility = "hidden"
+				dragArea.style.opacity = "0"
+			}
+		}
+		window.ondragover = ev => ev.preventDefault()
+		window.ondrop = ev => {
+			ev.preventDefault()
+			dragArea.style.visibility = "hidden"
+			dragArea.style.opacity = "0"
+			this.handleDragDropFileSelect(ev)
+		}
+		document.body.appendChild(dragArea)
+	}
+	handleDragOverFile(ev) {
+		this.createFileDragArea().style
+	}
+	handleDragDropFileSelect(ev) {
+		if (ev.dataTransfer.items) {
+			// Use DataTransferItemList interface to access the file(s)
+			if (ev.dataTransfer.items.length > 0) {
+				if (ev.dataTransfer.items[0].kind === "file") {
+					var file = ev.dataTransfer.items[0].getAsFile()
+					this.readFile(file)
+				}
+			}
+		} else {
+			// Use DataTransfer interface to access the file(s)
+			if (ev.dataTransfer.files.length > 0) {
+				var file = ev.dataTransfer.files[0]
+				this.readFile(file)
+			}
+		}
 	}
 	handleFileSelect(evt) {
 		var files = evt.target.files
 		for (var i = 0, f; (f = files[i]); i++) {
-			let reader = new FileReader()
-			let fileName = f.name
-			reader.onload = function (theFile) {
-				this.player.loadSong(
-					reader.result,
-					fileName,
-					this.setLoadMessage.bind(this)
-				)
-			}.bind(this)
-			reader.readAsDataURL(f)
+			console.log(f)
+			this.readFile(f)
 		}
+	}
+	readFile(file) {
+		let reader = new FileReader()
+		let fileName = file.name
+		reader.onload = function (theFile) {
+			this.player.loadSong(
+				reader.result,
+				fileName,
+				this.setLoadMessage.bind(this)
+			)
+		}.bind(this)
+		reader.readAsDataURL(file)
 	}
 	startLoad() {
 		this.getLoadingDiv().style.display = "block"
@@ -545,14 +744,14 @@ export class UI {
 	hideTracks() {
 		DomHelper.removeClass("selected", this.tracksButton)
 		this.tracksShown = false
-		this.getTrackMenuDiv().style.display = "none"
+		this.hideDiv(this.getTrackMenuDiv())
 	}
 
 	showTracks() {
 		this.hideAllDialogs()
 		DomHelper.addClassToElement("selected", this.tracksButton)
 		this.tracksShown = true
-		this.getTrackMenuDiv().style.display = "block"
+		this.showDiv(this.getTrackMenuDiv())
 	}
 
 	getMidiInputButton() {
@@ -576,7 +775,7 @@ export class UI {
 	hideMidiInputDialog() {
 		DomHelper.removeClass("selected", this.midiInputButton)
 		this.midiInputDialogShown = false
-		this.getMidiInputDialog().style.display = "none"
+		this.hideDiv(this.getMidiInputDialog())
 	}
 
 	showMidiInputDialog() {
@@ -584,7 +783,7 @@ export class UI {
 		DomHelper.addClassToElement("selected", this.midiInputButton)
 		this.midiInputDialogShown = true
 
-		this.getMidiInputDialog().style.display = "block"
+		this.showDiv(this.getMidiInputDialog())
 	}
 	getChannelsButton() {
 		if (!this.channelsButton) {
@@ -635,7 +834,9 @@ export class UI {
 		// this.hideChannels()
 		this.hideMidiInputDialog()
 		this.hideSettings()
+		this.hideLoadedSongsDiv()
 		this.hideTracks()
+		this.hideLoadedSongsDiv()
 	}
 
 	getMainVolumeSlider() {
@@ -813,7 +1014,7 @@ export class UI {
 				"midiInputDialog",
 				"centeredMenuDiv"
 			)
-			this.midiInputDialog.style.display = "none"
+			this.hideDiv(this.midiInputDialog)
 			document.body.appendChild(this.midiInputDialog)
 
 			let text = DomHelper.createDivWithClass(
@@ -827,7 +1028,6 @@ export class UI {
 			this.midiInputDialog.appendChild(this.inputDevicesDiv)
 		}
 		let devices = this.midiInputHandler.getAvailableDevices()
-		console.log(devices)
 		if (devices.length == 0) {
 			this.inputDevicesDiv.innerHTML = "No MIDI-devices found."
 		} else {
@@ -851,7 +1051,6 @@ export class UI {
 					this.midiInputHandler.clearInput(device)
 				} else {
 					DomHelper.addClassToElement("selected", deviceDiv)
-					console.log(device)
 					this.midiInputHandler.addInput(device)
 				}
 			}
@@ -868,11 +1067,9 @@ export class UI {
 				"trackContainerDiv",
 				"innerMenuDiv"
 			)
-			this.trackMenuDiv.style.display = "none"
+			this.hideDiv(this.trackMenuDiv)
 			document.body.appendChild(this.trackMenuDiv)
 		}
-		this.trackMenuDiv.style.marginTop =
-			this.getNavBar().clientHeight + 25 + "px"
 		return this.trackMenuDiv
 	}
 
@@ -958,6 +1155,13 @@ export class UI {
 			"Play along",
 			() => {
 				if (!trackObj.requiredToPlay) {
+					if (!this.midiInputHandler.isAnyInputSet()) {
+						this.addNotification(
+							"You have to choose a Midi Input Device to play along."
+						)
+						this.highlightElement(this.getMidiInputButton())
+						return
+					}
 					DomHelper.replaceGlyph(
 						requireToPlayAlongButton,
 						"minus-sign",
@@ -1010,5 +1214,17 @@ export class UI {
 		])
 
 		this.getTrackMenuDiv().appendChild(trackDiv)
+	}
+	addNotification(message) {
+		let notifEl = DomHelper.createDivWithClass("notification")
+		notifEl.innerHTML = message
+		document.body.appendChild(notifEl)
+		window.setTimeout(() => document.body.removeChild(notifEl), 1500)
+	}
+	highlightElement(element) {
+		element.classList.add("highlighted")
+		window.setTimeout(() => {
+			element.classList.remove("highlighted")
+		}, 1500)
 	}
 }

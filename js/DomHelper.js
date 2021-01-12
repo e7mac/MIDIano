@@ -32,7 +32,7 @@ export class DomHelper {
 			{ id: id + "container", className: "sliderContainer" }
 		)
 		let labelDiv = DomHelper.createElement(
-			"div",
+			"label",
 			{},
 			{ id: id + "label", className: "sliderLabel", innerHTML: label }
 		)
@@ -59,7 +59,7 @@ export class DomHelper {
 			{ id: id + "container", className: "sliderContainer" }
 		)
 		let labelDiv = DomHelper.createElement(
-			"div",
+			"label",
 			{},
 			{ id: id + "label", className: "sliderLabel", innerHTML: label }
 		)
@@ -111,6 +111,7 @@ export class DomHelper {
 		return DomHelper.createElement(tag, styles, attributes)
 	}
 	static createElementWithIdAndClass(id, className, tag, styles, attributes) {
+		styles = styles || {}
 		attributes = attributes || {}
 		attributes.id = id
 		attributes.className = className
@@ -153,7 +154,7 @@ export class DomHelper {
 		checkbox.onchange = onChange
 		let label = DomHelper.createElementWithClass(
 			"checkboxlabel",
-			"label",
+			"div",
 			{},
 			{ innerHTML: text }
 		)
@@ -262,5 +263,37 @@ export class DomHelper {
 			el.style[style] = styles[style]
 		})
 		return el
+	}
+
+	static createInputSelect(title, items, callback) {
+		let selectBox = DomHelper.createDivWithId(title)
+		let label = DomHelper.createElementWithClass(
+			"inputSelectLabel",
+			"label",
+			{},
+			{ innerHTML: title }
+		)
+		selectBox.appendChild(label)
+		let selectTag = DomHelper.createElementWithIdAndClass(
+			title,
+			"inputSelect",
+			"select"
+		)
+		selectBox.appendChild(selectTag)
+		items.forEach((item, index) => {
+			let option = DomHelper.createElement(
+				"option",
+				{},
+				{
+					value: item,
+					innerHTML: item
+				}
+			)
+			selectTag.appendChild(option)
+		})
+		selectBox.addEventListener("change", ev => {
+			callback(selectTag.value)
+		})
+		return selectBox
 	}
 }
