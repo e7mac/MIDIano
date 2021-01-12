@@ -391,6 +391,7 @@ export class Player {
 
 		let buffer = this.getBufferForNote(note.noteNumber, note.instrument)
 		let clampedGain = this.getClampedGain(note)
+		console.log(clampedGain)
 		if (clampedGain == 0) {
 			return
 		}
@@ -436,7 +437,7 @@ export class Player {
 	getClampedGain(note) {
 		let track = this.tracks[note.track]
 		let gain =
-			(2 + ((note.velocity / 127) * 2 * note.channelVolume) / 127) *
+			(((note.velocity / 127) * 4 * note.channelVolume) / 127) *
 			(track.volume / 100) *
 			(this.volume / 100)
 
