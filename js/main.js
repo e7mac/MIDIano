@@ -29,7 +29,7 @@ window.onload = async function () {
 	await init()
 	loading = true
 
-	loadSongFromURL(getUrlVars()["url"])
+	
 }
 
 async function init() {
@@ -41,7 +41,7 @@ async function init() {
 	listeners = new InputListeners(player, ui, render)
 	drawIt()
 
-	loadSongFromFile()
+	loadSongFromURL(getUrlVars()["url"])
 }
 
 var render
@@ -65,9 +65,9 @@ async function loadSongFromURL(url, title) {
 	})
 	await (await response).blob().then(res => {
 		let reader = new FileReader()
-		let fileName = title
+		let fileName = title || url.substring(url.lastIndexOf('/') + 1)
 		reader.onload = function (theFile) {
-			player.loadSong(reader.result, title, () => {})
+			player.loadSong(reader.result, fileName, () => {})
 		}
 		reader.readAsDataURL(res)
 	})
