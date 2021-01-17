@@ -1,6 +1,10 @@
+/**
+ * Particles handler
+ */
 export class ParticleRender {
-	constructor(ctx) {
+	constructor(ctx, renderDimensions) {
 		this.ctx = ctx
+		this.renderDimensions = renderDimensions
 		this.particles = new Map()
 	}
 	createParticles(x, y, w, h, color) {
@@ -43,6 +47,7 @@ export class ParticleRender {
 	updateParticle(particle) {
 		particle[0] += particle[2]
 		particle[1] += particle[3]
+		particle[4] = Math.max(0.1, particle[4] - 0.1)
 
 		//dampen xy-motion
 		particle[2] *= 0.92

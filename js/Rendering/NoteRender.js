@@ -1,33 +1,39 @@
 import { isBlack, drawRoundRect } from "../Util.js"
 
 import { ParticleRender } from "./ParticleRender.js"
-const LOOK_BACK_TIME = 4
-const LOOK_AHEAD_TIME = 10
 
+/**
+ * Class to render the notes on screen.
+ */
 export class NoteRender {
-	constructor(ctx, pianoRender) {
-		this.pianoRender = pianoRender
+	constructor(ctx, renderDimensions, pianoRender, lookBackTime, lookAheadTime) {
 		this.ctx = ctx
-		this.particleRender = new ParticleRender(this.ctx)
+		this.renderDimensions = renderDimensions
+		this.pianoRender = pianoRender
+		this.particleRender = new ParticleRender(this.ctx, this.renderDimensions)
+		this.lookBackTime = lookBackTime
+		this.lookAheadTime = lookAheadTime
 	}
 	render(playerState, settings) {
 		this.playerState = playerState
 		this.settings = settings
 		let renderInfos = []
-		if (playerState.song) {
-			playerState.song.activeTracks.forEach((track, index) => {
-				if (
-					this.playerState.tracks[index] &&
-					this.playerState.tracks[index].draw
-				) {
-					this.drawNotesInTimeWindowAndReturnRenderInfos(
-						playerState.time + this.settings.renderOffset / 1000,
-						track.notesBySeconds,
-						index
-					).forEach(renderInfo => renderInfos.push(renderInfo))
-				}
-			})
-		}
+
+		if (playerState)
+			if (playerState.song) {
+				playerState.song.activeTracks.forEach((track, trackIndex) => {
+					if (
+						this.playerState.tracks[trackIndex] &&
+						this.playerState.tracks[trackIndex].draw
+					) {
+						this.drawNotesInTimeWindowAndReturnRenderInfos(
+							this.getRenderTime(playerState),
+							track.notesBySeconds,
+							trackIndex
+						).forEach(renderInfo => renderInfos.push(renderInfo))
+					}
+				})
+			}
 
 		for (let noteNumber in playerState.inputActiveNotes) {
 			this.pianoRender.drawActiveInputKey(noteNumber, isBlack(noteNumber))
@@ -38,17 +44,31 @@ export class NoteRender {
 		//return renderInfos for Debugrender..
 		return renderInfos
 	}
-	resize(windowWidth, windowHeight, noteToHeightConst) {
-		this.windowWidth = windowWidth
-		this.windowHeight = windowHeight
-		this.noteToHeightConst = noteToHeightConst
+	/**
+	 * Returns current time adjusten for the render-offset from the settings
+	 * @param {Object} playerState
+	 */
+	getRenderTime(playerState) {
+		return playerState.time + this.settings.renderOffset / 1000
 	}
+	/**
+	 * Sets Menu (Navbar) Height.  Required to calculate fadeIn alpha value
+	 *
+	 * @param {Number} menuHeight
+	 */
 	setMenuHeight(menuHeight) {
 		this.menuHeight = menuHeight
 	}
+	/**
+	 * Renders all notes in time window between lookBackTime and lookAheadTime
+	 *
+	 * @param {Number} time
+	 * @param {Object} notesBySeconds
+	 * @param {Integer} index
+	 */
 	drawNotesInTimeWindowAndReturnRenderInfos(time, notesBySeconds, index) {
-		let lookBackTime = Math.floor(time - LOOK_BACK_TIME)
-		let lookAheadTime = Math.ceil(time + LOOK_AHEAD_TIME)
+		let lookBackTime = Math.floor(time - this.lookBackTime)
+		let lookAheadTime = Math.ceil(time + this.lookAheadTime)
 
 		//sort by Black/white, so we only have to change fillstyle once.
 		let notesRenderInfoBlack = []
@@ -70,45 +90,41 @@ export class NoteRender {
 		let colWhite = this.getColor(index).white
 		let colBlack = this.getColor(index).black
 
-		let activeNotesBlack = notesRenderInfoBlack
-			.slice(0)
-			.filter(renderInfo => renderInfo.isOn)
+		let activeNotes = this.getActiveNotes(
+			notesRenderInfoBlack,
+			notesRenderInfoWhite
+		)
 
-		let activeNotesWhite = notesRenderInfoWhite
-			.slice(0)
-			.filter(renderInfo => renderInfo.isOn)
+		this.renderActiveNoteEffects(activeNotes, colWhite, colBlack)
+		this.renderNotes(
+			notesRenderInfoWhite,
+			notesRenderInfoBlack,
+			colWhite,
+			colBlack
+		)
 
-		if (this.settings.showHitKeys) {
-			this.ctx.fillStyle = colWhite
-			activeNotesWhite.forEach(note => this.renderActiveNote(note))
-			this.ctx.fillStyle = colBlack
-			activeNotesBlack.forEach(note => this.renderActiveNote(note))
-		}
-		this.ctx.globalAlpha = 1
-		this.ctx.strokeStyle = "rgba(0,0,0,1)"
+		this.renderActivePianoKeys(activeNotes, colWhite, colBlack)
+
+		this.createAndRenderParticles(activeNotes, colWhite, colBlack)
+
+		this.strokeActiveNotes(activeNotes)
+
+		return notesRenderInfoWhite.concat(notesRenderInfoBlack)
+	}
+	strokeActiveNotes(activeNotes) {
+		this.ctx.strokeStyle = "rgba(255,255,255,0.5)"
 		this.ctx.lineWidth = 1
-		this.ctx.fillStyle = colWhite
-		notesRenderInfoWhite.forEach(renderInfo => this.drawNote(renderInfo))
-		this.ctx.fillStyle = colBlack
-		notesRenderInfoBlack.forEach(renderInfo => this.drawNote(renderInfo))
+		activeNotes.black.forEach(note => this.strokeNote(note))
+		activeNotes.white.forEach(note => this.strokeNote(note))
+	}
 
-		if (this.settings.showPianoKeys) {
-			this.ctx.fillStyle = colWhite
-			activeNotesWhite.forEach(note =>
-				this.pianoRender.drawActiveKey(note, colWhite)
-			)
-			this.ctx.fillStyle = colBlack
-			activeNotesBlack.forEach(note =>
-				this.pianoRender.drawActiveKey(note, colBlack)
-			)
-		}
-
+	createAndRenderParticles(activeNotes, colWhite, colBlack) {
 		if (this.settings && this.settings.showParticles) {
-			activeNotesWhite.forEach(note =>
+			activeNotes.white.forEach(note =>
 				this.particleRender.createParticles(
 					note.x,
-					this.windowHeight -
-						this.pianoRender.whiteKeyHeight +
+					this.renderDimensions.windowHeight -
+						this.renderDimensions.whiteKeyHeight +
 						2 +
 						Math.random() * 2,
 					note.w,
@@ -116,11 +132,11 @@ export class NoteRender {
 					colWhite
 				)
 			)
-			activeNotesBlack.forEach(note =>
+			activeNotes.black.forEach(note =>
 				this.particleRender.createParticles(
 					note.x,
-					this.windowHeight -
-						this.pianoRender.whiteKeyHeight +
+					this.renderDimensions.windowHeight -
+						this.renderDimensions.whiteKeyHeight +
 						2 +
 						Math.random() * 2,
 					note.w,
@@ -129,30 +145,68 @@ export class NoteRender {
 				)
 			)
 		}
-
-		this.ctx.strokeStyle = "rgba(255,255,255,0.5)"
-		this.ctx.lineWidth = 1
-		activeNotesBlack.forEach(note => this.strokeNote(note))
-		activeNotesWhite.forEach(note => this.strokeNote(note))
-
-		return notesRenderInfoWhite.concat(notesRenderInfoBlack)
 	}
+
+	renderActivePianoKeys(activeNotes, colWhite, colBlack) {
+		if (this.settings.showPianoKeys) {
+			this.ctx.fillStyle = colWhite
+			activeNotes.white.forEach(note =>
+				this.pianoRender.drawActiveKey(note, colWhite)
+			)
+			this.ctx.fillStyle = colBlack
+			activeNotes.black.forEach(note =>
+				this.pianoRender.drawActiveKey(note, colBlack)
+			)
+		}
+	}
+
+	renderNotes(notesRenderInfoWhite, notesRenderInfoBlack, colWhite, colBlack) {
+		this.ctx.globalAlpha = 1
+		this.ctx.strokeStyle = "rgba(0,0,0,1)"
+		this.ctx.lineWidth = 1
+		this.ctx.fillStyle = colWhite
+		notesRenderInfoWhite.forEach(renderInfo => this.drawNote(renderInfo))
+		this.ctx.fillStyle = colBlack
+		notesRenderInfoBlack.forEach(renderInfo => this.drawNote(renderInfo))
+	}
+
+	renderActiveNoteEffects(activeNotes, colWhite, colBlack) {
+		if (this.settings.showHitKeys) {
+			this.ctx.fillStyle = colWhite
+			activeNotes.white.forEach(note => this.renderActiveNote(note))
+
+			this.ctx.fillStyle = colBlack
+			activeNotes.black.forEach(note => this.renderActiveNote(note))
+		}
+	}
+
+	getActiveNotes(notesRenderInfoBlack, notesRenderInfoWhite) {
+		let activeNotesBlack = notesRenderInfoBlack
+			.slice(0)
+			.filter(renderInfo => renderInfo.isOn)
+
+		let activeNotesWhite = notesRenderInfoWhite
+			.slice(0)
+			.filter(renderInfo => renderInfo.isOn)
+		return { white: activeNotesWhite, black: activeNotesBlack }
+	}
+
 	getRenderInfos(note, time) {
 		time *= 1000
-		let noteDims = this.getNoteDimensions(
+		let noteDims = this.renderDimensions.getNoteDimensions(
 			note.noteNumber,
 			time,
 			note.timestamp,
-			note.offTime
+			note.offTime,
+			note.sustainOffTime
 		)
 		let isOn = note.timestamp < time && note.offTime > time ? 1 : 0
 		let noteDoneRatio = 1 - (note.offTime - time) / note.duration
 		noteDoneRatio *= isOn
 		let rad = (noteDims.w / 10) * (1 - noteDoneRatio)
 		if (noteDims.h < rad * 2) {
-			let diff = rad * 2 - noteDims.h
-			noteDims.h = rad * 2
-			noteDims.y -= diff
+			let diff = rad - noteDims.h
+			rad = noteDims.h / 4
 		}
 		let keyBlack = isBlack(note.noteNumber - 21)
 		//TODO Clean up. Right now it returns more info than necessary to use in DebugRender..
@@ -173,10 +227,12 @@ export class NoteRender {
 			isOn: isOn,
 			noteDoneRatio: noteDoneRatio,
 			rad: rad,
-			x: noteDims.x + rad + 1,
+			x: noteDims.x + 1,
 			y: noteDims.y,
-			w: noteDims.w - rad * 2 - 2,
-			h: noteDims.h
+			w: noteDims.w - 2,
+			h: noteDims.h,
+			sustainH: noteDims.sustainH,
+			sustainY: noteDims.sustainY
 		}
 	}
 	strokeNote(renderInfo) {
@@ -208,11 +264,37 @@ export class NoteRender {
 		let y = renderInfos.y
 		let w = renderInfos.w
 		let h = renderInfos.h
-		// rad = Math.min(h / 2, rad)
 
+		let fadeInAlpha = 1
 		if (this.settings.fadeInNotes) {
-			ctx.globalAlpha = this.getAlphaFromHeight(y, h)
+			fadeInAlpha = this.getAlphaFromHeight(y, h)
 		}
+
+		if (
+			renderInfos.sustainH &&
+			renderInfos.sustainY &&
+			this.settings.showSustainedNotes
+		) {
+			ctx.globalAlpha =
+				(fadeInAlpha * this.settings.sustainedNotesOpacity) / 100
+			if (this.settings.roundedNotes) {
+				drawRoundRect(
+					ctx,
+					x,
+					renderInfos.sustainY,
+					w,
+					renderInfos.sustainH,
+					rad
+				)
+			} else {
+				ctx.beginPath()
+				ctx.rect(x, renderInfos.sustainY, w, renderInfos.sustainH)
+				ctx.closePath()
+			}
+			ctx.fill()
+			ctx.globalAlpha = fadeInAlpha
+		}
+
 		if (this.settings.roundedNotes) {
 			drawRoundRect(ctx, x, y, w, h, rad)
 		} else {
@@ -232,8 +314,8 @@ export class NoteRender {
 		return Math.min(
 			1,
 			(y + h - this.menuHeight) /
-				(this.windowHeight -
-					this.pianoRender.whiteKeyHeight -
+				(this.renderDimensions.windowHeight -
+					this.renderDimensions.whiteKeyHeight -
 					this.menuHeight) /
 				0.5
 		)
@@ -243,7 +325,7 @@ export class NoteRender {
 		let ctx = this.ctx
 		ctx.globalAlpha = Math.max(0, 0.7 - renderInfos.noteDoneRatio)
 		let wOffset = Math.pow(
-			this.pianoRender.whiteKeyWidth / 2,
+			this.renderDimensions.whiteKeyWidth / 2,
 			1 + renderInfos.noteDoneRatio
 		)
 		if (this.settings.roundedNotes) {
@@ -269,38 +351,6 @@ export class NoteRender {
 		ctx.globalAlpha = 1
 	}
 
-	/**
-	 *
-	 * @param {Number} noteNumber
-	 * @param {Number} currentTime
-	 * @param {Number} noteStartTime
-	 * @param {Number} noteEndTime
-	 */
-	getNoteDimensions(noteNumber, currentTime, noteStartTime, noteEndTime) {
-		noteNumber -= 21
-		const height = this.windowHeight - this.pianoRender.whiteKeyHeight
-
-		const dur = noteEndTime - noteStartTime
-		const keyBlack = isBlack(noteNumber)
-		const x = this.pianoRender.getKeyX(noteNumber, keyBlack)
-
-		const h =
-			(dur / this.noteToHeightConst) *
-			(this.windowHeight - this.pianoRender.whiteKeyHeight)
-		const y =
-			height -
-			((noteEndTime - currentTime) / this.noteToHeightConst) *
-				(this.windowHeight - this.pianoRender.whiteKeyHeight)
-		return {
-			x: x,
-			y: y + 1,
-			w: keyBlack
-				? this.pianoRender.blackKeyWidth
-				: this.pianoRender.whiteKeyWidth,
-			h: h - 2,
-			black: keyBlack
-		}
-	}
 	/**
 	 *
 	 * @param {Number} trackIndex

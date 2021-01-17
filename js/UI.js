@@ -7,9 +7,16 @@ import { DomHelper } from "./DomHelper.js"
 export class UI {
 	constructor(player, render, isMobile) {
 		this.settings = {
+			soundfontName: "MusyngKite",
+			sustainEnabled: true,
+			showSustainOnOffs: true,
+			showSustainPeriods: true,
+			showSustainedNotes: true,
+			sustainedNotesOpacity: 50,
+			showBPM: true,
 			showParticles: true,
 			particleAmount: 40,
-			particleSize: 1,
+			particleSize: 2,
 			particleLife: 12,
 			particleSpeed: 4,
 			showHitKeys: true,
@@ -18,8 +25,7 @@ export class UI {
 			roundedNotes: true,
 			fadeInNotes: true,
 			renderOffset: 0,
-			showNoteDebugInfo: false,
-			soundfontName: "MusyngKite"
+			showNoteDebugInfo: false
 		}
 		this.midiInputHandler = player.midiInputHandler
 		this.player = player
@@ -35,32 +41,22 @@ export class UI {
 
 		render.updateSettings(this.settings)
 		player.updateSettings(this.settings)
-		this.notifySettingsChanged = () => {
-			render.updateSettings(this.settings)
-			player.updateSettings(this.settings)
-		}
 
 		document.body.addEventListener("mousemove", this.mouseMoved.bind(this))
 
 		this.createControlMenu()
-		this.resize()
-	}
 
-	/**
-	 * Sets all dimensions dependent on window size
-	 */
-	resize() {
-		this.width = Math.floor(window.innerWidth)
-		this.height = Math.floor(window.innerHeight)
 		this.menuHeight = 200
+
 		document
 			.querySelectorAll(".innerMenuDiv")
 			.forEach(
 				el =>
 					(el.style.height =
-						"calc(100% - " + this.getNavBar().clientHeight + "px)")
+						"calc(100% - " + (this.getNavBar().clientHeight + 25) + "px)")
 			)
 	}
+
 	fireInitialListeners() {
 		//Todo: or preload glyphs somehow. . .
 		window.setTimeout(
@@ -291,11 +287,74 @@ export class UI {
 		)
 		settingsDivs.push(soundfontSelect)
 
+		let enableSustainCheckbox = DomHelper.createCheckbox(
+			"Enable Sustain",
+			ev => {
+				this.settings.sustainEnabled = ev.target.checked
+				if (!this.settings.sustainEnabled) {
+					//TODO
+					//if sustain gets disabled in the audio, lets also turn off all rendering of sustains
+					// this.settings.showSustainOnOffs = false
+					// this.settings.showSustainPeriods = false
+					// this.settings.showSustainedNotes = false
+				}
+			},
+			this.settings.sustainEnabled
+		)
+		settingsDivs.push(enableSustainCheckbox)
+
+		let drawSustainOnOffsCheckbox = DomHelper.createCheckbox(
+			"Draw Sustain On/Off Events",
+			ev => {
+				this.settings.showSustainOnOffs = ev.target.checked
+			},
+			this.settings.showSustainOnOffs
+		)
+		settingsDivs.push(drawSustainOnOffsCheckbox)
+
+		let drawSustainPeriodsCheckbox = DomHelper.createCheckbox(
+			"Draw Sustain Periods",
+			ev => {
+				this.settings.showSustainPeriods = ev.target.checked
+			},
+			this.settings.showSustainPeriods
+		)
+		settingsDivs.push(drawSustainPeriodsCheckbox)
+
+		let drawSustainedNotesCheckbox = DomHelper.createCheckbox(
+			"Draw Sustained Notes",
+			ev => {
+				this.settings.showSustainedNotes = ev.target.checked
+			},
+			this.settings.showSustainedNotes
+		)
+		settingsDivs.push(drawSustainedNotesCheckbox)
+
+		let sustainedNotesOpacitySlider = DomHelper.createSliderWithLabelAndField(
+			"sustainedNotesOpacitySlider",
+			"Sustained Notes Opacity (%)",
+			this.settings.sustainedNotesOpacity,
+			0,
+			100,
+			value => {
+				this.settings.sustainedNotesOpacity = value
+			}
+		)
+		settingsDivs.push(sustainedNotesOpacitySlider.container)
+
+		let showBPMCheckbox = DomHelper.createCheckbox(
+			"Show BPM",
+			ev => {
+				this.settings.showBPM = ev.target.checked
+			},
+			this.settings.showBPM
+		)
+		settingsDivs.push(showBPMCheckbox)
+
 		let showParticlesCheckbox = DomHelper.createCheckbox(
 			"Show Particles",
 			ev => {
 				this.settings.showParticles = ev.target.checked
-				this.notifySettingsChanged()
 			},
 			this.settings.showParticles
 		)
@@ -309,7 +368,6 @@ export class UI {
 			200,
 			value => {
 				this.settings.particleAmount = value
-				this.notifySettingsChanged()
 			}
 		)
 		settingsDivs.push(particleAmountSlider.container)
@@ -318,10 +376,9 @@ export class UI {
 			"Particle Size",
 			this.settings.particleSize,
 			0,
-			5,
+			10,
 			value => {
 				this.settings.particleSize = value
-				this.notifySettingsChanged()
 			}
 		)
 		settingsDivs.push(particleSizeSlider.container)
@@ -334,7 +391,6 @@ export class UI {
 			15,
 			value => {
 				this.settings.particleSpeed = value
-				this.notifySettingsChanged()
 			}
 		)
 		settingsDivs.push(particleSpeedSlider.container)
@@ -347,7 +403,6 @@ export class UI {
 			30,
 			value => {
 				this.settings.particleLife = value
-				this.notifySettingsChanged()
 			}
 		)
 		settingsDivs.push(particleLifeSlider.container)
@@ -356,7 +411,6 @@ export class UI {
 			"Hit Key Effect",
 			ev => {
 				this.settings.showHitKeys = ev.target.checked
-				this.notifySettingsChanged()
 			},
 			this.settings.showHitKeys
 		)
@@ -366,7 +420,6 @@ export class UI {
 			"Stroke Notes",
 			ev => {
 				this.settings.strokeNotes = ev.target.checked
-				this.notifySettingsChanged()
 			},
 			this.settings.strokeNotes
 		)
@@ -376,7 +429,6 @@ export class UI {
 			"Rounded Corners Notes",
 			ev => {
 				this.settings.roundedNotes = ev.target.checked
-				this.notifySettingsChanged()
 			},
 			this.settings.roundedNotes
 		)
@@ -386,7 +438,6 @@ export class UI {
 			"Fade in Notes",
 			ev => {
 				this.settings.fadeInNotes = ev.target.checked
-				this.notifySettingsChanged()
 			},
 			this.settings.fadeInNotes
 		)
@@ -396,7 +447,6 @@ export class UI {
 			"Show Notes on Piano",
 			ev => {
 				this.settings.showPianoKeys = ev.target.checked
-				this.notifySettingsChanged()
 			},
 			this.settings.showPianoKeys
 		)
@@ -410,7 +460,6 @@ export class UI {
 			250,
 			value => {
 				this.settings.renderOffset = value
-				this.notifySettingsChanged()
 			}
 		)
 		settingsDivs.push(renderOffsetSlider.container)
@@ -419,7 +468,6 @@ export class UI {
 			"Show Note Debug Info",
 			ev => {
 				this.settings.showNoteDebugInfo = ev.target.checked
-				this.notifySettingsChanged()
 			},
 			this.settings.showNoteDebugInfo
 		)
@@ -429,7 +477,6 @@ export class UI {
 
 		return settingsDivs
 	}
-	notifySettingsChanged() {}
 	getFullscreenButton() {
 		if (!this.fullscreenButton) {
 			this.fullscreen = false

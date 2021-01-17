@@ -40,13 +40,15 @@ export class Player {
 		this.settings = settings
 	}
 	getState() {
+		let time = this.getTime()
 		return {
-			time: this.getTime(),
+			time: time,
 			end: this.song ? this.song.getEnd() : 0,
 			loading: this.loading,
 			song: this.song,
 			tracks: this.tracks,
-			inputActiveNotes: this.inputActiveNotes
+			inputActiveNotes: this.inputActiveNotes,
+			bpm: this.getBPM(time)
 		}
 	}
 	addNewSongCallback(callback) {
@@ -243,11 +245,20 @@ export class Player {
 			return
 		}
 	}
-
+	getBPM(time) {
+		let val = 0
+		if (this.song) {
+			for (let i = this.song.temporalData.bpms.length - 1; i >= 0; i--) {
+				if (time * 1000 > this.song.temporalData.bpms[i].timestamp) {
+					val = this.song.temporalData.bpms[i].bpm
+					break
+				}
+			}
+		}
+		return val
+	}
 	play() {
 		if (this.scrolling != 0) {
-			window.setTimeout(this.play.bind(this), 20)
-			return
 		}
 
 		let delta = (this.context.currentTime - this.lastTime) * this.playbackSpeed
@@ -257,10 +268,13 @@ export class Player {
 			return
 		}
 		let oldProgress = this.progress
+		this.lastTime = this.context.currentTime
 		if (!this.paused) {
 			this.progress += delta
+		} else {
+			window.setTimeout(this.play.bind(this), 20)
+			return
 		}
-		this.lastTime = this.context.currentTime
 
 		let currentTime = this.getTime()
 
@@ -397,8 +411,17 @@ export class Player {
 		}
 
 		const startTime = contextTime + delay
-		const endTime =
+		let endTime =
 			startTime + note.duration / 1000 / this.playbackSpeed + delayCorrection
+		let sustainOffTime =
+			startTime + note.sustainDuration / 1000 / this.playbackSpeed
+		const isSustained = endTime < sustainOffTime
+
+		let attack = 0.02
+		let sustain = 0.8
+		let decay = 0.5
+		let releasePedal = 0.1
+		let releaseKey = 0.2
 
 		let source = this.context.createBufferSource()
 		let gainNode = this.context.createGain()
@@ -406,20 +429,40 @@ export class Player {
 		source.connect(gainNode)
 
 		gainNode.value = 0
+		//start at zero
 		gainNode.gain.setTargetAtTime(0, contextTime, 0.05)
-		gainNode.gain.setTargetAtTime(
-			0,
-			Math.max(contextTime, startTime - 0.02),
-			0.05
-		)
-		gainNode.gain.linearRampToValueAtTime(clampedGain, startTime, 0.05)
-		gainNode.gain.setTargetAtTime(clampedGain, endTime, 0.05)
-		gainNode.gain.exponentialRampToValueAtTime(0.001, endTime + 0.5)
-		//gainNode.gain.linearRampToValueAtTime(0, contextTime + delay + (note.duration / 1000) / this.playbackSpeed + 0.1)
+		gainNode.gain.setTargetAtTime(0, Math.max(contextTime, startTime), 0.05)
+		//Attack //TODO implement Harmonic scale if sustained?
+		gainNode.gain.linearRampToValueAtTime(clampedGain, startTime + attack, 0.05)
+
+		if (!isSustained || !this.settings.sustainEnabled) {
+			//Sustain
+			gainNode.gain.setTargetAtTime(clampedGain, endTime, 0.05)
+			//Release
+			gainNode.gain.exponentialRampToValueAtTime(0.001, endTime + releaseKey)
+			gainNode.gain.setTargetAtTime(0, endTime + releaseKey + 0.001, 0.05)
+		} else {
+			let decayedGain =
+				clampedGain *
+				Math.pow(0.999, Math.max(1, (sustainOffTime - startTime) / 10))
+			//Sustain
+			gainNode.gain.linearRampToValueAtTime(decayedGain, sustainOffTime)
+			//Release
+			gainNode.gain.exponentialRampToValueAtTime(
+				0.001,
+				sustainOffTime + releasePedal
+			)
+			gainNode.gain.setTargetAtTime(
+				0,
+				sustainOffTime + releasePedal + 0.001,
+				0.05
+			)
+		}
+
 		gainNode.connect(this.context.destination)
 
 		source.start(Math.max(0, startTime))
-		source.stop(endTime + 1)
+		source.stop(isSustained ? note.sustainOffTime + 1 : endTime + 1)
 
 		this.sources.push(source)
 	}
