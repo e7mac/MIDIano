@@ -197,7 +197,7 @@ export class Song {
 	}
 	distributeEvents(track, newTrack) {
 		track.forEach(event => {
-			if (event.type == "noteOn" || event.type == "noteOff" || ((event.type=="controller") && (event.controllerType==64) )) {
+			if (event.type == "noteOn" || event.type == "noteOff") {
 				newTrack.notes.push(event)
 			} else if (event.type == "setTempo") {
 				newTrack.tempoChanges.push(event)
@@ -261,41 +261,22 @@ export class Song {
 	setNoteOffTimestamps(notes) {
 		for (let i = 0; i < notes.length; i++) {
 			let note = notes[i]
-			if (note.type == "controller") {
-				sustainPedalOn = note.value > 64
-			}
 			if (note.type == "noteOn") {
-				Song.findOffNote(i, notes.slice(0), sustainPedalOn)
+				Song.findOffNote(i, notes.slice(0))
 			}
 		}
 	}
 
-	static findOffNote(index, notes, sustainPedalOnStart) {
+	static findOffNote(index, notes) {
 		let onNote = notes[index]
-		let sustainPedalOn = sustainPedalOnStart
-		let noteOffWasHit = false
-		let noteWasRepeated = false
 		for (let i = index + 1; i < notes.length; i++) {
-			if (notes[i].type == "controller" && notes[i].controllerType==64) {
-				sustainPedalOn = notes[i].value > 64
-			}			
 			if (
 				notes[i].type == "noteOff" &&
 				onNote.noteNumber == notes[i].noteNumber
 			) {
-				noteOffWasHit = true
-				onNote.offTime = notes[i].timestamp			
-			}
-			if (
-				notes[i].type == "noteOn" &&
-				onNote.noteNumber == notes[i].noteNumber
-			) {
-				noteWasRepeated = true
-			}			
-			if ((noteOffWasHit == true && sustainPedalOn==false) 
-				|| noteWasRepeated)
-			{
-				onNote.duration = notes[i].timestamp - onNote.timestamp
+				onNote.offTime = notes[i].timestamp
+				onNote.duration = onNote.offTime - onNote.timestamp
+
 				break
 			}
 		}
