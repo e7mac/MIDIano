@@ -1,7 +1,7 @@
 import { MidiLoader } from "./MidiLoader.js"
 import { Song } from "./Song.js"
 import { CONST } from "./CONST.js"
-// import { MidiInputHandler } from "./MidiInputHandler.js"
+import { MidiInputHandler } from "./MidiInputHandler.js"
 import { AudioPlayer } from "./AudioPlayer.js"
 import { getLoader } from "./ui/Loader.js"
 import { getSetting } from "./settings/Settings.js"
@@ -13,10 +13,9 @@ export class Player {
 		this.tracks = {}
 		this.audioPlayer = new AudioPlayer(this.tracks)
 
-		this.context = new AudioContext()
-		// this.midiInputHandler = new MidiInputHandler()
-		// this.midiInputHandler.setNoteOnCallback(this.addInputNoteOn.bind(this))
-		// this.midiInputHandler.setNoteOffCallback(this.addInputNoteOff.bind(this))
+		this.midiInputHandler = new MidiInputHandler()
+		this.midiInputHandler.setNoteOnCallback(this.addInputNoteOn.bind(this))
+		this.midiInputHandler.setNoteOffCallback(this.addInputNoteOff.bind(this))
 		this.startDelay = -2
 		this.lastTime = this.audioPlayer.getContextTime()
 		this.progress = 0

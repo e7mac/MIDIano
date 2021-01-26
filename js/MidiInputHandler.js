@@ -11,10 +11,10 @@ export class MidiInputHandler {
 			navigator
 				.requestMIDIAccess()
 				.then(this.onMIDIInit.bind(this), this.onMIDIReject.bind(this))
-		else
-			alert(
-				"No MIDI support present in your browser.  Check https://developer.mozilla.org/en-US/docs/Web/API/MIDIAccess#Browser_compatibility to see which Browsers support this feature."
-			)
+		// else
+		// 	alert(
+		// 		"No MIDI support present in your browser.  Check https://developer.mozilla.org/en-US/docs/Web/API/MIDIAccess#Browser_compatibility to see which Browsers support this feature."
+		// 	)
 	}
 	isAnyInputSet() {
 		let devices = this.getAvailableDevices()
