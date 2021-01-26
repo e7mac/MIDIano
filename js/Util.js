@@ -1,8 +1,13 @@
-function formatTime(seconds) {
+function formatTime(seconds, showMilis) {
 	seconds = Math.max(seconds, 0)
 	let date = new Date(seconds * 1000)
+	let timeStrLength = showMilis ? 11 : 8
 	try {
-		return date.toISOString().substr(11, 8)
+		let timeStr = date.toISOString().substr(11, timeStrLength)
+		if (timeStr.substr(0, 2) == "00") {
+			timeStr = timeStr.substr(3)
+		}
+		return timeStr
 	} catch (e) {
 		console.error(e)
 		//ignore this. only seems to happend when messing with breakpoints in devtools
@@ -30,7 +35,7 @@ function sum(arr) {
  * @param {Number} height
  * @param {Number} radius
  */
-function drawRoundRect(ctx, x, y, width, height, radius) {
+function drawRoundRect(ctx, x, y, width, height, radius, isRounded) {
 	// radius = radius * 2 < ( Math.min( height, width ) ) ? radius : ( Math.min( height, width ) ) / 2
 	if (typeof radius === "undefined") {
 		radius = 0
@@ -55,16 +60,53 @@ function drawRoundRect(ctx, x, y, width, height, radius) {
 	}
 
 	ctx.beginPath()
-	ctx.moveTo(x + radius.tl, y)
-	ctx.lineTo(x + width - radius.tr, y)
-	ctx.lineTo(x + width, y + radius.tr)
-	ctx.lineTo(x + width, y + height - radius.br)
-	ctx.lineTo(x + width - radius.br, y + height)
-	ctx.lineTo(x + radius.bl, y + height)
-	ctx.lineTo(x, y + height - radius.bl)
-	ctx.lineTo(x, y + radius.tl)
-	ctx.lineTo(x + radius.tl, y)
-
+	if (!isRounded) {
+		ctx.moveTo(x + radius.tl, y)
+		ctx.lineTo(x + width - radius.tr, y)
+		ctx.lineTo(x + width, y + radius.tr)
+		ctx.lineTo(x + width, y + height - radius.br)
+		ctx.lineTo(x + width - radius.br, y + height)
+		ctx.lineTo(x + radius.bl, y + height)
+		ctx.lineTo(x, y + height - radius.bl)
+		ctx.lineTo(x, y + radius.tl)
+		ctx.lineTo(x + radius.tl, y)
+	} else {
+		ctx.moveTo(x + radius.tl, y)
+		ctx.lineTo(x + width - radius.tr, y)
+		ctx.quadraticCurveTo(x + width, y, x + width, y + radius.tr)
+		ctx.lineTo(x + width, y + height - radius.br)
+		ctx.quadraticCurveTo(
+			x + width,
+			y + height,
+			x + width - radius.br,
+			y + height
+		)
+		ctx.lineTo(x + radius.bl, y + height)
+		ctx.quadraticCurveTo(x, y + height, x, y + height - radius.bl)
+		ctx.lineTo(x, y + radius.tl)
+		ctx.quadraticCurveTo(x, y, x + radius.tl, y)
+	}
 	ctx.closePath()
 }
-export { formatTime, isBlack, sum, drawRoundRect }
+
+function replaceAllString(text, replaceThis, withThat) {
+	return text.replace(new RegExp(replaceThis, "g"), withThat)
+}
+
+function groupArrayBy(arr, keyFunc) {
+	let keys = {}
+	arr.forEach(el => (keys[keyFunc(el)] = []))
+	Object.keys(keys).forEach(key => {
+		arr.forEach(el => (keyFunc(el) == key ? keys[keyFunc(el)].push(el) : null))
+	})
+	return keys
+}
+
+export {
+	formatTime,
+	isBlack,
+	sum,
+	drawRoundRect,
+	replaceAllString,
+	groupArrayBy
+}

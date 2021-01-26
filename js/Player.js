@@ -3,13 +3,15 @@ import { Song } from "./Song.js"
 import { CONST } from "./CONST.js"
 // import { MidiInputHandler } from "./MidiInputHandler.js"
 import { AudioPlayer } from "./AudioPlayer.js"
+import { getLoader } from "./ui/Loader.js"
+import { getSetting } from "./settings/Settings.js"
 const LOOK_AHEAD_TIME = 0.2
 const LOOK_AHEAD_TIME_WHEN_PLAYALONG = 0.02
 export class Player {
 	constructor() {
 		this.sources = []
 		this.tracks = {}
-		this.audioPlayer = new AudioPlayer(this.tracks, this.settings)
+		this.audioPlayer = new AudioPlayer(this.tracks)
 
 		this.context = new AudioContext()
 		// this.midiInputHandler = new MidiInputHandler()
@@ -25,17 +27,12 @@ export class Player {
 		this.muted = false
 		this.volume = 100
 		this.mutedAtVolume = 100
+		this.soundfontName = getSetting("soundfontName")
 
 		this.newSongCallbacks = []
 		this.inputActiveNotes = {}
-		this.onloadStartCallbacks = []
-		this.onloadStopCallbacks = []
 
 		this.playbackSpeed = 1
-	}
-	updateSettings(settings) {
-		this.settings = settings
-		this.audioPlayer.settings = this.settings
 	}
 	getState() {
 		let time = this.getTime()
@@ -52,18 +49,18 @@ export class Player {
 	addNewSongCallback(callback) {
 		this.newSongCallbacks.push(callback)
 	}
-	switchSoundfont(soundfontName, setLoadMessage) {
+	switchSoundfont(soundfontName) {
 		this.wasPaused = this.paused
 		this.paused = true
-		this.onloadStartCallbacks.forEach(callback => callback())
+		getLoader().startLoad()
 		let nowTime = window.performance.now()
 		this.soundfontName = soundfontName
 		this.audioPlayer
-			.switchSoundfont(soundfontName, this.currentSong, setLoadMessage)
+			.switchSoundfont(soundfontName, this.currentSong)
 			.then(resolve => {
 				window.setTimeout(() => {
 					this.paused = this.wasPaused
-					this.onloadStopCallbacks.forEach(callback => callback())
+					getLoader().stopLoad()
 				}, Math.max(0, 500 - (window.performance.now() - nowTime)))
 			})
 	}
@@ -90,6 +87,18 @@ export class Player {
 			return this.channels[this.song.activeTracks[track].notes[0].channel]
 		}
 	}
+	getCurrentTrackInstrument(trackIndex) {
+		let i = 0
+		let noteSeq = this.currentSong.getNoteSequence()
+		let nextNote = noteSeq[i]
+		while (nextNote.track != trackIndex && i < noteSeq.length - 1) {
+			i++
+			nextNote = noteSeq[i]
+		}
+		if (nextNote.track == trackIndex) {
+			return nextNote.instrument
+		}
+	}
 	setupTracks() {
 		this.tracks = {}
 		for (let t in this.song.activeTracks) {
@@ -99,7 +108,8 @@ export class Player {
 					color: CONST.TRACK_COLORS[t % 4],
 					volume: 100,
 					name: this.song.activeTracks[t].name || "Track " + t,
-					requiredToPlay: false
+					requiredToPlay: false,
+					index: t
 				}
 			}
 			this.tracks[t].color = CONST.TRACK_COLORS[t % 4]
@@ -107,20 +117,19 @@ export class Player {
 		this.audioPlayer.tracks = this.tracks
 	}
 
-	async loadSong(theSong, fileName, setLoadMessage) {
-		setLoadMessage("Loading " + fileName + ".")
+	async loadSong(theSong, fileName) {
+		getLoader().startLoad()
+		getLoader().setLoadMessage("Loading " + fileName + ".")
 		if (this.audioPlayer.isRunning()) {
 			this.audioPlayer.suspend()
 		}
 
-		this.onloadStartCallbacks.forEach(callback => callback())
-
 		this.loading = true
 
-		setLoadMessage("Parsing Midi File.")
+		getLoader().setLoadMessage("Parsing Midi File.")
 		let midiFile = await MidiLoader.loadFile(theSong)
 		this.currentSong = new Song(midiFile, fileName)
-		setLoadMessage("Loading Instruments")
+		getLoader().setLoadMessage("Loading Instruments")
 
 		this.setSong(this.currentSong)
 		this.loadedSongs.add(this.currentSong)
@@ -129,11 +138,8 @@ export class Player {
 
 		this.setupTracks()
 		this.newSongCallbacks.forEach(callback => callback())
-		setLoadMessage("Creating Buffers")
-		let onloadStopCallbacks = this.onloadStopCallbacks
-		return this.audioPlayer
-			.loadBuffers()
-			.then(v => onloadStopCallbacks.forEach(callback => callback()))
+		getLoader().setLoadMessage("Creating Buffers")
+		return this.audioPlayer.loadBuffers().then(v => getLoader().stopLoad())
 	}
 
 	setSong(song) {
@@ -228,22 +234,28 @@ export class Player {
 		return val
 	}
 	play() {
-		if (this.scrolling != 0) {
-		}
 		let currentContextTime = this.audioPlayer.getContextTime()
 
 		let delta = (currentContextTime - this.lastTime) * this.playbackSpeed
+
 		//cap max framerate.
 		if (delta < 0.0069) {
 			window.requestAnimationFrame(this.play.bind(this))
 			return
 		}
+
 		let oldProgress = this.progress
 		this.lastTime = currentContextTime
-		if (!this.paused) {
+		if (!this.paused && this.scrolling == 0) {
 			this.progress += delta
 		} else {
 			window.setTimeout(this.play.bind(this), 20)
+			return
+		}
+
+		let soundfontName = getSetting("soundfontName")
+		if (soundfontName != this.soundfontName) {
+			this.switchSoundfont(soundfontName)
 			return
 		}
 
@@ -278,25 +290,8 @@ export class Player {
 			}
 		}
 
-		// if (!this.paused) {
 		window.requestAnimationFrame(this.play.bind(this))
-		// }
 	}
-	// setChannelVolumes(currentTime) {
-	// 	let currentSecond = Math.floor(currentTime)
-	// 	for (let i = 0; i < currentSecond; i++) {
-	// 		if (!this.song.controlEvents.hasOwnProperty(i)) continue
-
-	// 		for (let c in this.song.controlEvents[i]) {
-	// 			let controlEvent = this.song.controlEvents[i][c]
-	// 			if (controlEvent.timestamp <= currentTime) {
-	// 				if (controlEvent.controllerType == 7) {
-	// 					this.channels[controlEvent.channel].volume = controlEvent.value
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-	// }
 	isInputKeyPressed(noteNumber) {
 		if (
 			this.inputActiveNotes.hasOwnProperty(noteNumber) &&
@@ -396,7 +391,7 @@ export class Player {
 			console.log("NOTE ALREADY PLAING")
 			return
 		}
-		let audioNote = { wasUsed: false } //this.startNoteAndGetNodes(noteNumber)
+		let audioNote = { wasUsed: false }
 
 		this.inputActiveNotes[noteNumber] = audioNote
 	}
@@ -405,8 +400,6 @@ export class Player {
 			console.log("NOTE NOT PLAYING")
 			return
 		}
-		// this.inputActiveNotes[noteNumber].gainNode.gain.setTargetAtTime(0, 0, 0.05)
-		// this.inputActiveNotes[noteNumber].source.stop(0)
 		delete this.inputActiveNotes[noteNumber]
 	}
 }
