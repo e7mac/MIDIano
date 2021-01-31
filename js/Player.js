@@ -160,6 +160,12 @@ export class Player {
 		this.resetNoteSequence()
 		this.lastTime = this.audioPlayer.getContextTime()
 		this.audioPlayer.resume()
+		this.midi = document.getElementById('midi-player');
+		let midi = this.midi
+		setTimeout(function() {
+			midi.start()
+		} , -this.startDelay * 1000);
+
 		this.play()
 		return true
 	}
@@ -330,6 +336,7 @@ export class Player {
 		this.scrollOffset = 0
 		this.playing = false
 		this.pause()
+		this.midi.stop()
 	}
 	resume() {
 		if (!this.song) return

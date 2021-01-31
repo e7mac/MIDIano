@@ -44,7 +44,7 @@ window.onload = async function () {
 	await init()
 	loading = true
 
-	
+
 }
 
 async function init() {
@@ -78,6 +78,8 @@ async function loadSongFromURL(url, title) {
 	let response = fetch(url, {
 		method: "GET" // *GET, POST, PUT, DELETE, etc.
 	})
+	let midi = document.getElementById('midi-player');
+	midi.src = url;
 	await (await response).blob().then(res => {
 		let reader = new FileReader()
 		let fileName = title || url.substring(url.lastIndexOf('/') + 1)

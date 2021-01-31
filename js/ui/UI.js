@@ -9,6 +9,9 @@ export class UI {
 	constructor(player, render, isMobile) {
 		this.midiInputHandler = player.midiInputHandler
 		this.player = player
+		this.midi = document.getElementById('midi-player');
+		console.log('this.midi')
+		console.log(this.midi)
 
 		this.isMobile = window.matchMedia(
 			"only screen and (max-width: 1600px)"
