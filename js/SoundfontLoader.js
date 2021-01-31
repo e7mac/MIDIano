@@ -66,17 +66,17 @@ export class SoundfontLoader {
 	}
 	static async createBuffers(ctx, soundfontName) {
 		let promises = []
-		for (let instrument in MIDI[soundfontName]) {
-			console.log("Loaded instrument : " + instrument)
-			for (let note in MIDI[soundfontName][instrument]) {
-				let base64Buffer = SoundfontLoader.getBase64Buffer(
-					MIDI[soundfontName][instrument][note]
-				)
-				promises.push(
-					SoundfontLoader.getNotePromise(ctx, base64Buffer, note, instrument)
-				)
-			}
-		}
+		// for (let instrument in MIDI[soundfontName]) {
+		// 	console.log("Loaded instrument : " + instrument)
+		// 	for (let note in MIDI[soundfontName][instrument]) {
+		// 		let base64Buffer = SoundfontLoader.getBase64Buffer(
+		// 			MIDI[soundfontName][instrument][note]
+		// 		)
+		// 		promises.push(
+		// 			SoundfontLoader.getNotePromise(ctx, base64Buffer, note, instrument)
+		// 		)
+		// 	}
+		// }
 		return await Promise.all(promises)
 	}
 	static async getNotePromise(ctx, base64Buffer, note, instrument) {
