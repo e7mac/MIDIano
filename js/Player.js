@@ -33,6 +33,10 @@ export class Player {
 
 		this.playbackSpeed = 1
 	}
+	midiElement() {
+		return document.getElementById('midi-player');
+	}
+
 	getState() {
 		let time = this.getTime()
 		return {
@@ -77,6 +81,7 @@ export class Player {
 		this.sources.forEach(source => source.stop(0))
 		this.progress += seconds - this.getTime()
 		this.resetNoteSequence()
+		this.midiElement().currentTime = seconds
 	}
 	getSong() {
 		return this.song
@@ -152,7 +157,7 @@ export class Player {
 	}
 	startPlay() {
 		if (!this.song) return false
-
+		eval("Tone.start()")
 		console.log("Starting Song")
 		this.paused = false
 		this.wasPaused = false
@@ -160,8 +165,7 @@ export class Player {
 		this.resetNoteSequence()
 		this.lastTime = this.audioPlayer.getContextTime()
 		this.audioPlayer.resume()
-		this.midi = document.getElementById('midi-player');
-		let midi = this.midi
+		let midi = this.midiElement();
 		setTimeout(function() {
 			midi.start()
 		} , -this.startDelay * 1000);
@@ -336,7 +340,7 @@ export class Player {
 		this.scrollOffset = 0
 		this.playing = false
 		this.pause()
-		this.midi.stop()
+		this.midiElement().stop()
 	}
 	resume() {
 		if (!this.song) return
@@ -346,6 +350,7 @@ export class Player {
 		this.resetNoteSequence()
 		this.audioPlayer.resume()
 		this.play()
+		this.midiElement().resume()
 	}
 	resetNoteSequence() {
 		this.noteSequence = this.song.getNoteSequence()
@@ -360,6 +365,7 @@ export class Player {
 		this.pauseTime = this.getTime()
 		this.paused = true
 		this.wasPaused = true
+		this.midiElement().pause()
 	}
 
 	playNote(note) {

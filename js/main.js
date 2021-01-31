@@ -50,7 +50,6 @@ window.onload = async function () {
 async function init() {
 	player = new Player()
 	console.log("Player created.")
-
 	render = new Render(player)
 	ui = new UI(player, render)
 	listeners = new InputListeners(player, ui, render)
